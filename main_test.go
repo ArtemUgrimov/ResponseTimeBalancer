@@ -33,14 +33,14 @@ func TestDemo(t *testing.T) {
 
 	handler.ServeHTTP(recorder, req)
 
-	// assertCookie(t, req)
+	assertCookie(t, req)
 }
 
 func assertCookie(t *testing.T, req *http.Request) {
 	t.Helper()
 
 	_, err := req.Cookie("pod-id")
-	if err == nil {
+	if err != nil {
 		t.Errorf("pod-id cookie is present")
 	}
 }
