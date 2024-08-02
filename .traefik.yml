@@ -1,12 +1,11 @@
-displayName: Demo Plugin
+displayName: ResponseTimeBalancer
 type: middleware
 iconPath: .assets/icon.png
 
-import: github.com/traefik/plugindemo
+import: github.com/ArtemUgrimov/ResponseTimeBalancer
 
-summary: '[Demo] Add Request Header'
+summary: 'Removing cookie if response time exceeds specified amount ms'
 
 testData:
-  Headers:
-    X-Demo: test
-    X-URL: '{{URL}}'
+  cookie_name: "pod-id"
+  response_time_limit_ms: 50
