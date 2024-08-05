@@ -52,10 +52,16 @@ func (a *ResponseTimeLimit) ServeHTTP(rw http.ResponseWriter, req *http.Request)
 		startTime:         tsBefore,
 	}
 
-	a.next.ServeHTTP(myWriter, req)
+	os.Stderr.WriteString("\n\n\nBEFORE SERVE\n\n\n")
 
-	// tsAfter := time.Now().UnixMilli()
-	// os.Stderr.WriteString(fmt.Sprintf("Response time = %d", tsAfter-tsBefore))
+	a.next.ServeHTTP(myWriter, req)
+	// a.next.ServeHTTP(rw, req)
+
+	os.Stderr.WriteString("\n\n\nAFTER SERVE\n\n\n")
+
+	tsAfter := time.Now().UnixMilli()
+	os.Stderr.WriteString(fmt.Sprintf("Response time = %d", tsAfter-tsBefore))
+	os.Stdout.WriteString(fmt.Sprintf("Response time = %d", tsAfter-tsBefore))
 }
 
 type responseWriter struct {
@@ -79,12 +85,13 @@ func (r *responseWriter) WriteHeader(statusCode int) {
 	tsAfter := time.Now().UnixMilli()
 	os.Stderr.WriteString(fmt.Sprintf("Response time = %d", tsAfter-r.startTime))
 
-	if tsAfter-r.startTime > r.ResponseTimeLimit {
-		// Delete set-cookie headers
-		r.writer.Header().Del(r.CookieName)
+	r.writer.Header().Add("Poceluj moju zalupu", "1488")
+	// r.writer.Header().Del(r.CookieName)
+	// if tsAfter-r.startTime > r.ResponseTimeLimit {
+	// 	// Delete set-cookie headers
 
-		os.Stderr.WriteString(fmt.Sprintf("Delete cookies because of response time = %d", tsAfter-r.startTime))
-	}
+	// 	os.Stderr.WriteString(fmt.Sprintf("Delete cookies because of response time = %d", tsAfter-r.startTime))
+	// }
 
 	r.writer.WriteHeader(statusCode)
 }
