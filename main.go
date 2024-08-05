@@ -12,9 +12,9 @@ import (
 
 // Config the plugin configuration.
 type Config struct {
-	CookieName             string `json:"cookie_name,omitempty"`
-	ResponseTimeHeaderName string `json:"response_time_header_name,omitempty"`
-	ResponseTimeLimit      int    `json:"response_time_limit_ms,omitempty"`
+	CookieName             string `json:"cookieName"`
+	ResponseTimeHeaderName string `json:"responseTimeHeaderName"`
+	ResponseTimeLimitMs    string `json:"responseTimeLimitMs"`
 }
 
 // CreateConfig creates the default plugin configuration.
@@ -22,7 +22,7 @@ func CreateConfig() *Config {
 	return &Config{
 		CookieName:             "pod-id",
 		ResponseTimeHeaderName: "Tm",
-		ResponseTimeLimit:      50,
+		ResponseTimeLimitMs:    "50",
 	}
 }
 
@@ -39,12 +39,17 @@ type ResponseTimeLimit struct {
 func New(ctx context.Context, next http.Handler, config *Config, name string) (http.Handler, error) {
 	os.Stderr.WriteString(fmt.Sprintf("Creating a ResponseTimeLimit plugin. Config : %v\n", config))
 
+	limit, err := strconv.Atoi(config.ResponseTimeLimitMs)
+	if err != nil {
+		return nil, fmt.Errorf("cannot parse ResponseTimeLimit, got %v", config.ResponseTimeLimitMs)
+	}
+
 	return &ResponseTimeLimit{
 		next:                   next,
 		name:                   name,
 		CookieName:             config.CookieName,
 		ResponseTimeHeaderName: config.ResponseTimeHeaderName,
-		ResponseTimeLimit:      config.ResponseTimeLimit,
+		ResponseTimeLimit:      limit,
 	}, nil
 }
 

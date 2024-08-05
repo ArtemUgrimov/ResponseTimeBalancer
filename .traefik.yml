@@ -7,6 +7,7 @@ import: github.com/ArtemUgrimov/ResponseTimeBalancer
 summary: 'Removing cookie if response time exceeds specified amount ms'
 
 testData:
-  cookie_name: "pod-id"
-  response_time_limit_ms: 50
-  response_time_header_name: "Tm"
+  rtb_static:
+    cookieName: "pod-id"
+    responseTimeHeaderName: "Tm"
+    responseTimeLimitMs: "2"

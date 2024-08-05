@@ -7,7 +7,7 @@ http:
     rtb:
       plugin:
         rtb_static:
-          cookie_name: "pod-id"
-          response_time_limit_ms: 50
-          response_time_header_name: "Tm"
+          cookieName: "pod-id"
+          responseTimeHeaderName: "Tm"
+          responseTimeLimitMs: "2"
 ```
