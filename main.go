@@ -12,27 +12,26 @@ import (
 
 // Config the plugin configuration.
 type Config struct {
-	CookieName             string `json:"cookieName"`
 	ResponseTimeHeaderName string `json:"responseTimeHeaderName"`
 	ResponseTimeLimitMs    string `json:"responseTimeLimitMs"`
+	CookieSetHeaderValue   string `json:"cookieSetHeaderValue"`
 }
 
 // CreateConfig creates the default plugin configuration.
 func CreateConfig() *Config {
 	return &Config{
-		CookieName:             "pod-id",
 		ResponseTimeHeaderName: "Tm",
 		ResponseTimeLimitMs:    "50",
+		CookieSetHeaderValue:   "invalidated",
 	}
 }
 
 // ResponseTimeLimit a ResponseTimeLimit plugin.
 type ResponseTimeLimit struct {
-	next                   http.Handler
-	name                   string
-	CookieName             string
-	ResponseTimeHeaderName string
-	ResponseTimeLimit      int
+	next    http.Handler
+	name    string
+	config  *Config
+	limitMs int
 }
 
 // New created a new Demo plugin.
@@ -45,20 +44,19 @@ func New(ctx context.Context, next http.Handler, config *Config, name string) (h
 	}
 
 	return &ResponseTimeLimit{
-		next:                   next,
-		name:                   name,
-		CookieName:             config.CookieName,
-		ResponseTimeHeaderName: config.ResponseTimeHeaderName,
-		ResponseTimeLimit:      limit,
+		next:    next,
+		name:    name,
+		config:  config,
+		limitMs: limit,
 	}, nil
 }
 
 func (a *ResponseTimeLimit) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	myWriter := &responseWriter{
 		writer:                 rw,
-		CookieName:             a.CookieName,
-		ResponseTimeHeaderName: a.ResponseTimeHeaderName,
-		ResponseTimeLimit:      a.ResponseTimeLimit,
+		ResponseTimeHeaderName: a.config.ResponseTimeHeaderName,
+		ResponseTimeLimit:      a.limitMs,
+		CookieSetHeaderValue:   a.config.CookieSetHeaderValue,
 	}
 
 	a.next.ServeHTTP(myWriter, req)
@@ -69,6 +67,7 @@ type responseWriter struct {
 	CookieName             string
 	ResponseTimeHeaderName string
 	ResponseTimeLimit      int
+	CookieSetHeaderValue   string
 }
 
 func (r *responseWriter) Header() http.Header {
@@ -86,14 +85,14 @@ func (r *responseWriter) WriteHeader(statusCode int) {
 		tm, err := strconv.Atoi(tmStr)
 		if err == nil {
 			if tm > r.ResponseTimeLimit {
-				r.writer.Header().Set("Set-Cookie", fmt.Sprintf("%s=invalidated", r.CookieName))
+				r.writer.Header().Set("Set-Cookie", r.CookieSetHeaderValue)
 				os.Stderr.WriteString(fmt.Sprintf("Deleting cookie with name %s\n", r.CookieName))
 			} else {
 				os.Stderr.WriteString(fmt.Sprintf("Limit (%d) is not reached. Skip\n", r.ResponseTimeLimit))
 			}
 		}
 	} else {
-		os.Stderr.WriteString(fmt.Sprintf("Could not find header %s", r.ResponseTimeHeaderName))
+		os.Stderr.WriteString(fmt.Sprintf("Could not find header %s\n", r.ResponseTimeHeaderName))
 	}
 
 	r.writer.WriteHeader(statusCode)
