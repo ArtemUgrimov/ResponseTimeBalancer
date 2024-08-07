@@ -36,7 +36,7 @@ type ResponseTimeLimit struct {
 
 // New created a new Demo plugin.
 func New(ctx context.Context, next http.Handler, config *Config, name string) (http.Handler, error) {
-	os.Stderr.WriteString(fmt.Sprintf("Creating a ResponseTimeLimit plugin. Config : %v\n", config))
+	os.Stderr.WriteString(fmt.Sprintf("ResponseTimeLimit plugin:    Init config : %v\n", config))
 
 	limit, err := strconv.Atoi(config.ResponseTimeLimitMs)
 	if err != nil {
@@ -64,7 +64,6 @@ func (a *ResponseTimeLimit) ServeHTTP(rw http.ResponseWriter, req *http.Request)
 
 type responseWriter struct {
 	writer                 http.ResponseWriter
-	CookieName             string
 	ResponseTimeHeaderName string
 	ResponseTimeLimit      int
 	CookieSetHeaderValue   string
@@ -81,18 +80,21 @@ func (r *responseWriter) Write(bytes []byte) (int, error) {
 func (r *responseWriter) WriteHeader(statusCode int) {
 	tmStr := r.writer.Header().Get(r.ResponseTimeHeaderName)
 	if len(tmStr) > 0 {
-		os.Stderr.WriteString(fmt.Sprintf("Response time = %s\n", tmStr))
 		tm, err := strconv.Atoi(tmStr)
 		if err == nil {
 			if tm > r.ResponseTimeLimit {
 				r.writer.Header().Set("Set-Cookie", r.CookieSetHeaderValue)
-				os.Stderr.WriteString(fmt.Sprintf("Deleting cookie with name %s\n", r.CookieName))
+				os.Stderr.WriteString(
+					fmt.Sprintf(
+						"ResponseTimeLimit plugin:   Response time = %d. Set-Cookie: %s\n", tm, r.CookieSetHeaderValue))
 			} else {
-				os.Stderr.WriteString(fmt.Sprintf("Limit (%d) is not reached. Skip\n", r.ResponseTimeLimit))
+				os.Stderr.WriteString(
+					fmt.Sprintf(
+						"ResponseTimeLimit plugin:   Response time = %d. Limit (%d) is not reached. Skip\n", tm, r.ResponseTimeLimit))
 			}
 		}
 	} else {
-		os.Stderr.WriteString(fmt.Sprintf("Could not find header %s\n", r.ResponseTimeHeaderName))
+		os.Stderr.WriteString(fmt.Sprintf("ResponseTimeLimit plugin:   Could not find header %s\n", r.ResponseTimeHeaderName))
 	}
 
 	r.writer.WriteHeader(statusCode)
