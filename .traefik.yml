@@ -8,6 +8,12 @@ summary: 'Removing cookie if response time exceeds specified amount ms'
 
 testData:
   rtb_static:
+    cookiePodIdName: "pod-id"
+    additionalCookie: "; Path=/"
     responseTimeHeaderName: "Tm"
-    responseTimeLimitMs: "2"
-    cookieSetHeaderValue: "invalidated"
+    responseTimeDiffMsToInvalidate: "30"
+    logStart: true
+    logCookieFound: false
+    logCookieResetToBest: true
+    logIdle: false
+    logBestUpdate: true
