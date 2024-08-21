@@ -4,10 +4,15 @@ iconPath: .assets/icon.png
 
 import: github.com/ArtemUgrimov/ResponseTimeBalancer
 
-summary: 'Removing cookie if response time exceeds specified amount ms'
+summary: 'Resetting cookie if the value defined in some header exceeds specified amount'
 
 testData:
   rtb_static:
     responseTimeHeaderName: "Tm"
-    responseTimeLimitMs: "2"
+    responseTimeLimitMs: "80"
     cookieSetHeaderValue: "invalidated"
+
+    logStartup: true
+    logSetCookie: true
+    logLimitNotReached: true
+    logHeaderNotFound: true

@@ -7,7 +7,12 @@ http:
     rtb:
       plugin:
         rtb_static:
-          cookieName: "pod-id"
           responseTimeHeaderName: "Tm"
-          responseTimeLimitMs: "2"
+          responseTimeLimitMs: "80"
+          cookieSetHeaderValue: "invalidated"
+
+          logStartup: true
+          logSetCookie: true
+          logLimitNotReached: true
+          logHeaderNotFound: true
 ```
