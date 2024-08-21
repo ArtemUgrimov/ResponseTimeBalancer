@@ -20,7 +20,6 @@ type Config struct {
 	LogHeaderNotFound  bool `json:"logHeaderNotFound"`
 }
 
-// CreateConfig creates the default plugin configuration.
 func CreateConfig() *Config {
 	return &Config{
 		ResponseTimeHeaderName: "Tm",
@@ -34,8 +33,7 @@ func CreateConfig() *Config {
 	}
 }
 
-// ResponseTimeLimit a ResponseTimeLimit plugin.
-type ResponseTimeLimit struct {
+type Plugin struct {
 	next    http.Handler
 	name    string
 	config  *Config
@@ -53,7 +51,7 @@ func New(ctx context.Context, next http.Handler, config *Config, name string) (h
 		return nil, fmt.Errorf("RTL plugin:    cannot parse ResponseTimeLimit, got %v", config.ResponseTimeLimitMs)
 	}
 
-	return &ResponseTimeLimit{
+	return &Plugin{
 		next:    next,
 		name:    name,
 		config:  config,
@@ -61,9 +59,10 @@ func New(ctx context.Context, next http.Handler, config *Config, name string) (h
 	}, nil
 }
 
-func (a *ResponseTimeLimit) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
+func (a *Plugin) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	myWriter := &responseWriter{
 		writer:                 rw,
+		config:                 a.config,
 		ResponseTimeHeaderName: a.config.ResponseTimeHeaderName,
 		ResponseTimeLimit:      a.limitMs,
 		CookieSetHeaderValue:   a.config.CookieSetHeaderValue,
