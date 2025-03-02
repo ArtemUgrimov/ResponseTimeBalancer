@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"strconv"
+	"strings"
 )
 
 type responseWriter struct {
@@ -16,6 +17,7 @@ type responseWriter struct {
 	ResponseTimeHeaderName string
 	ResponseTimeLimit      int
 	CookieSetHeaderValue   string
+	PartitionedHeaderValue string
 }
 
 func (r *responseWriter) Header() http.Header {
@@ -55,15 +57,13 @@ func (r *responseWriter) WriteHeader(statusCode int) {
 				}
 			}
 		}
-	} else {
-		if r.config.LogHeaderNotFound {
-			os.Stderr.WriteString(
-				fmt.Sprintf(
-					"RTL plugin:    Could not find header %s\n",
-					r.ResponseTimeHeaderName,
-				),
-			)
-		}
+	}
+
+	// https://github.com/traefik/traefik/issues/10117
+	setCookieHeader := r.writer.Header().Get("Set-Cookie")
+	if len(setCookieHeader) > 0 && !strings.Contains(setCookieHeader, "Partitioned") {
+		// add Partitioned;
+		r.writer.Header().Set("Set-Cookie", fmt.Sprintf("%s %s", setCookieHeader, r.config.PartitionedHeaderValue))
 	}
 
 	r.writer.WriteHeader(statusCode)

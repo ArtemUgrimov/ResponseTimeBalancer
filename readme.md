@@ -50,6 +50,7 @@ spec:
       responseTimeHeaderName: "Tm"
       responseTimeLimitMs: "80"
       cookieSetHeaderValue: "invalidated"
+      partitionedHeaderValue: " Partitioned;"
 
       logStartup: true
       logSetCookie: true

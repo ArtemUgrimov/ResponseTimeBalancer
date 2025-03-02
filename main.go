@@ -13,6 +13,7 @@ type Config struct {
 	ResponseTimeHeaderName string `json:"responseTimeHeaderName"`
 	ResponseTimeLimitMs    string `json:"responseTimeLimitMs"`
 	CookieSetHeaderValue   string `json:"cookieSetHeaderValue"`
+	PartitionedHeaderValue string `json:"partitionedHeaderValue"`
 
 	LogStartup         bool `json:"logStartup"`
 	LogSetCookie       bool `json:"logSetCookie"`
@@ -25,6 +26,7 @@ func CreateConfig() *Config {
 		ResponseTimeHeaderName: "Tm",
 		ResponseTimeLimitMs:    "80",
 		CookieSetHeaderValue:   "invalidated",
+		PartitionedHeaderValue: " Partitioned;",
 
 		LogStartup:         true,
 		LogSetCookie:       true,
@@ -66,6 +68,7 @@ func (a *Plugin) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 		ResponseTimeHeaderName: a.config.ResponseTimeHeaderName,
 		ResponseTimeLimit:      a.limitMs,
 		CookieSetHeaderValue:   a.config.CookieSetHeaderValue,
+		PartitionedHeaderValue: a.config.PartitionedHeaderValue,
 	}
 
 	a.next.ServeHTTP(myWriter, req)
