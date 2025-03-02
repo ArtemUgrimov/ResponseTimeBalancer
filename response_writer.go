@@ -64,6 +64,13 @@ func (r *responseWriter) WriteHeader(statusCode int) {
 	if len(setCookieHeader) > 0 && !strings.Contains(setCookieHeader, "Partitioned") {
 		// add Partitioned;
 		r.writer.Header().Set("Set-Cookie", fmt.Sprintf("%s %s", setCookieHeader, r.config.PartitionedHeaderValue))
+		os.Stderr.WriteString(fmt.Sprintf("Added %s value to the cookies\n", r.config.PartitionedHeaderValue))
+	} else {
+		headers := "Headers:\n"
+		for k, v := range r.writer.Header() {
+			headers = fmt.Sprintf("%s%s=%s\n", headers, k, v)
+		}
+		os.Stderr.WriteString(headers)
 	}
 
 	r.writer.WriteHeader(statusCode)
