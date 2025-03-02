@@ -15,10 +15,11 @@ type Config struct {
 	CookieSetHeaderValue   string `json:"cookieSetHeaderValue"`
 	PartitionedHeaderValue string `json:"partitionedHeaderValue"`
 
-	LogStartup         bool `json:"logStartup"`
-	LogSetCookie       bool `json:"logSetCookie"`
-	LogLimitNotReached bool `json:"logLimitNotReached"`
-	LogHeaderNotFound  bool `json:"logHeaderNotFound"`
+	EnableCookieInvalidation bool `json:"enableCookieInvalidation"`
+	LogStartup               bool `json:"logStartup"`
+	LogSetCookie             bool `json:"logSetCookie"`
+	LogLimitNotReached       bool `json:"logLimitNotReached"`
+	LogHeaderNotFound        bool `json:"logHeaderNotFound"`
 }
 
 func CreateConfig() *Config {
@@ -26,12 +27,13 @@ func CreateConfig() *Config {
 		ResponseTimeHeaderName: "Tm",
 		ResponseTimeLimitMs:    "80",
 		CookieSetHeaderValue:   "invalidated",
-		PartitionedHeaderValue: " Partitioned;",
+		PartitionedHeaderValue: "; SameSite=None; Partitioned;",
 
-		LogStartup:         true,
-		LogSetCookie:       true,
-		LogLimitNotReached: true,
-		LogHeaderNotFound:  true,
+		EnableCookieInvalidation: true,
+		LogStartup:               true,
+		LogSetCookie:             true,
+		LogLimitNotReached:       true,
+		LogHeaderNotFound:        true,
 	}
 }
 

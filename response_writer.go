@@ -29,6 +29,17 @@ func (r *responseWriter) Write(bytes []byte) (int, error) {
 }
 
 func (r *responseWriter) WriteHeader(statusCode int) {
+	r.invalidateCookie()
+	r.enablePartitioned()
+
+	r.writer.WriteHeader(statusCode)
+}
+
+func (r *responseWriter) invalidateCookie() {
+	if !r.config.EnableCookieInvalidation {
+		return
+	}
+
 	tmStr := r.writer.Header().Get(r.ResponseTimeHeaderName)
 	if len(tmStr) > 0 {
 		tm, err := strconv.Atoi(tmStr)
@@ -58,22 +69,24 @@ func (r *responseWriter) WriteHeader(statusCode int) {
 			}
 		}
 	}
+}
+
+func (r *responseWriter) enablePartitioned() {
+	if len(r.config.PartitionedHeaderValue) == 0 {
+		return
+	}
 
 	// https://github.com/traefik/traefik/issues/10117
 	setCookieHeader := r.writer.Header().Get("Set-Cookie")
-	if len(setCookieHeader) > 0 && !strings.Contains(setCookieHeader, "Partitioned") {
-		// add Partitioned;
-		r.writer.Header().Set("Set-Cookie", fmt.Sprintf("%s %s", setCookieHeader, r.config.PartitionedHeaderValue))
-		os.Stderr.WriteString(fmt.Sprintf("Added %s value to the cookies\n", r.config.PartitionedHeaderValue))
-	} else {
-		headers := "Headers:\n"
-		for k, v := range r.writer.Header() {
-			headers = fmt.Sprintf("%s%s=%s\n", headers, k, v)
+	if len(setCookieHeader) > 0 {
+		if strings.Contains(setCookieHeader, "Partitioned") {
+			os.Stderr.WriteString("Set-Cookie already contains Partitioned value. Skip\n")
+		} else {
+			// add Partitioned value
+			r.writer.Header().Set("Set-Cookie", fmt.Sprintf("%s %s", setCookieHeader, r.config.PartitionedHeaderValue))
+			os.Stderr.WriteString(fmt.Sprintf("Added %s value to the cookies\n", r.config.PartitionedHeaderValue))
 		}
-		os.Stderr.WriteString(headers)
 	}
-
-	r.writer.WriteHeader(statusCode)
 }
 
 func (r *responseWriter) Hijack() (net.Conn, *bufio.ReadWriter, error) {

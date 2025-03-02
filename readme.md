@@ -21,6 +21,7 @@ http:
           responseTimeLimitMs: "80"
           cookieSetHeaderValue: "invalidated"
 
+          enableCookieInvalidation: true
           logStartup: true
           logSetCookie: true
           logLimitNotReached: true
@@ -50,8 +51,9 @@ spec:
       responseTimeHeaderName: "Tm"
       responseTimeLimitMs: "80"
       cookieSetHeaderValue: "invalidated"
-      partitionedHeaderValue: " Partitioned;"
+      partitionedHeaderValue: "; SameSite=None; Partitioned;"
 
+      enableCookieInvalidation: true
       logStartup: true
       logSetCookie: true
       logLimitNotReached: true
