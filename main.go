@@ -34,7 +34,9 @@ func (b *K8sBalancer) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	podID := req.Header.Get(b.header)
 
 	var targetPod string
-	if pod, exists := b.k8s.GetPod(podID); exists {
+	if len(podID) == 0 {
+		targetPod = b.k8s.GetRandomPod()
+	} else if pod, exists := b.k8s.GetPod(podID); exists {
 		targetPod = pod
 	} else {
 		targetPod = b.k8s.GetRandomPod()
