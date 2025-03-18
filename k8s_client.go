@@ -84,7 +84,7 @@ func (kc *K8sClient) updatePods() error {
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("RTB : failed to fetch endpoints, status: %d", resp.StatusCode)
+		return fmt.Errorf("RTB : failed to fetch endpoints, status: %d (url: %s, token: %s)", resp.StatusCode, url, kc.token)
 	}
 
 	body, err := io.ReadAll(resp.Body)

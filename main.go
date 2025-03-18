@@ -37,8 +37,12 @@ func (b *K8sBalancer) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 		targetPod = pod
 	} else {
 		targetPod = b.k8s.GetRandomPod()
-		os.Stderr.WriteString(fmt.Sprintf("RTB : pod %s does not exist, picked %s\n", podID, targetPod))
-		podID = fmt.Sprintf("%x", targetPod)[:8]
+		if len(targetPod) > 0 {
+			os.Stderr.WriteString(fmt.Sprintf("RTB : pod %s does not exist, picked %s\n", podID, targetPod))
+			podID = fmt.Sprintf("%x", targetPod)[:8]
+		} else {
+			os.Stderr.WriteString("RTB : pod cannot be picked\n")
+		}
 	}
 
 	req.URL.Host = targetPod
