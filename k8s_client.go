@@ -14,6 +14,15 @@ import (
 	"time"
 )
 
+// K8sClientInterface defines the contract for Kubernetes client interactions.
+type K8sClientInterface interface {
+	GetPod(podID string) (string, bool)
+	GetRandomPod() string
+}
+
+// Ensure K8sClient implements K8sClientInterface
+var _ K8sClientInterface = (*K8sClient)(nil)
+
 // K8sClient interacts with Kubernetes API using raw HTTP requests.
 type K8sClient struct {
 	apiURL     string

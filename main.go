@@ -3,6 +3,7 @@ package ResponseTimeBalancer
 import (
 	"context"
 	"fmt"
+	"hash/crc32"
 	"net/http"
 	"os"
 )
@@ -10,7 +11,7 @@ import (
 // K8sBalancer is the middleware struct
 type K8sBalancer struct {
 	next   http.Handler
-	k8s    *K8sClient
+	k8s    K8sClientInterface
 	header string
 }
 
@@ -39,7 +40,8 @@ func (b *K8sBalancer) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 		targetPod = b.k8s.GetRandomPod()
 		if len(targetPod) > 0 {
 			os.Stderr.WriteString(fmt.Sprintf("RTB : pod %s does not exist, picked %s\n", podID, targetPod))
-			podID = fmt.Sprintf("%x", targetPod)[:8]
+			hash := crc32.ChecksumIEEE([]byte(targetPod))
+			podID = fmt.Sprintf("%08x", hash)
 		} else {
 			os.Stderr.WriteString("RTB : pod cannot be picked\n")
 		}
