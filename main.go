@@ -51,10 +51,12 @@ func (b *K8sBalancer) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 		}
 	}
 
-	req.URL.Host = targetPod
-	req.URL.Scheme = "http"
-	req.Header.Set("X-Balancer", "K8sBalancer")
-	rw.Header().Set(b.header, podID)
+	if len(targetPod) > 0 {
+		req.URL.Host = targetPod
+		req.URL.Scheme = "http"
+		req.Header.Set("X-Balancer", "K8sBalancer")
+		rw.Header().Set(b.header, targetPod)
+	}
 
 	b.next.ServeHTTP(rw, req)
 }
