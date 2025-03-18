@@ -9,13 +9,16 @@ import (
 	"testing"
 )
 
-// Mock K8sClient for testing
+// MockK8sClient implements K8sClientInterface for testing.
 type MockK8sClient struct {
 	pods map[string]string
 	mu   sync.RWMutex
 }
 
-// NewMockK8sClient creates a mock K8sClient with predefined pods
+// Ensure MockK8sClient implements K8sClientInterface
+var _ K8sClientInterface = (*MockK8sClient)(nil)
+
+// NewMockK8sClient initializes a mock Kubernetes client with test pods.
 func NewMockK8sClient() *MockK8sClient {
 	return &MockK8sClient{
 		pods: map[string]string{
@@ -25,7 +28,7 @@ func NewMockK8sClient() *MockK8sClient {
 	}
 }
 
-// GetPod returns the pod's IP by pod-id
+// GetPod returns the pod IP by pod-id.
 func (kc *MockK8sClient) GetPod(podID string) (string, bool) {
 	kc.mu.RLock()
 	defer kc.mu.RUnlock()
@@ -33,15 +36,36 @@ func (kc *MockK8sClient) GetPod(podID string) (string, bool) {
 	return pod, exists
 }
 
-// GetRandomPod returns a random pod IP
+// GetRandomPod returns a random pod IP.
 func (kc *MockK8sClient) GetRandomPod() string {
 	kc.mu.RLock()
 	defer kc.mu.RUnlock()
 
 	for _, ip := range kc.pods {
-		return ip // Returns the first pod (for simplicity)
+		return ip // Returns the first pod for simplicity
 	}
 	return ""
+}
+
+// AddPod simulates adding a new pod.
+func (kc *MockK8sClient) AddPod(ip string) {
+	kc.mu.Lock()
+	defer kc.mu.Unlock()
+	hash := crc32.ChecksumIEEE([]byte(ip))
+	kc.pods[fmt.Sprintf("%08x", hash)] = ip
+}
+
+// RemovePod simulates removing a pod by its IP.
+func (kc *MockK8sClient) RemovePod(ip string) {
+	kc.mu.Lock()
+	defer kc.mu.Unlock()
+
+	for key, val := range kc.pods {
+		if val == ip {
+			delete(kc.pods, key)
+			break
+		}
+	}
 }
 
 // **Test ServeHTTP method for balancing requests**
@@ -68,7 +92,7 @@ func TestK8sBalancer_ServeHTTP(t *testing.T) {
 
 	// Verify that the same pod-id is returned in the response
 	if rec.Header().Get("pod-id") != "abcd1234" {
-		t.Errorf("Expected pod-id to be 'abcd1234', got '%s'", rec.Header().Get("pod-id"))
+		t.Errorf("Expected pod-id 'abcd1234', got '%s'", rec.Header().Get("pod-id"))
 	}
 
 	// **2. Test random pod selection when `pod-id` is missing**
@@ -94,18 +118,31 @@ func TestPodHashGeneration(t *testing.T) {
 	}
 }
 
-// **Test updating pods in K8sClient**
-func TestK8sClient_UpdatePods(t *testing.T) {
+// **Test adding a pod dynamically**
+func TestK8sClient_AddPod(t *testing.T) {
 	mockClient := NewMockK8sClient()
 
-	// Add a new pod
-	mockClient.mu.Lock()
-	mockClient.pods["ijkl9012"] = "10.0.0.3"
-	mockClient.mu.Unlock()
+	mockClient.AddPod("10.0.0.3")
 
-	// Verify that the new pod is stored
-	if _, exists := mockClient.GetPod("ijkl9012"); !exists {
-		t.Errorf("Expected new pod to be added")
+	// Compute the expected hash
+	expectedHash := fmt.Sprintf("%08x", crc32.ChecksumIEEE([]byte("10.0.0.3")))
+
+	if _, exists := mockClient.GetPod(expectedHash); !exists {
+		t.Errorf("Expected newly added pod to be retrievable")
+	}
+}
+
+// **Test removing a pod dynamically**
+func TestK8sClient_RemovePod(t *testing.T) {
+	mockClient := NewMockK8sClient()
+
+	mockClient.RemovePod("10.0.0.2")
+
+	// Compute the expected hash
+	expectedHash := fmt.Sprintf("%08x", crc32.ChecksumIEEE([]byte("10.0.0.2")))
+
+	if _, exists := mockClient.GetPod(expectedHash); exists {
+		t.Errorf("Expected pod to be removed, but it still exists")
 	}
 }
 

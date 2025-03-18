@@ -11,7 +11,6 @@ import (
 	"os"
 	"strings"
 	"sync"
-	"time"
 )
 
 // K8sClientInterface defines the contract for Kubernetes client interactions.
@@ -23,7 +22,7 @@ type K8sClientInterface interface {
 // Ensure K8sClient implements K8sClientInterface
 var _ K8sClientInterface = (*K8sClient)(nil)
 
-// K8sClient interacts with Kubernetes API using raw HTTP requests.
+// K8sClient interacts with Kubernetes API using HTTP requests.
 type K8sClient struct {
 	apiURL     string
 	token      string
@@ -34,13 +33,12 @@ type K8sClient struct {
 	httpClient *http.Client
 }
 
-// NewK8sClient initializes the Kubernetes client using HTTP requests.
-func NewK8sClient(namespace, service string, updateInterval time.Duration) (*K8sClient, error) {
-	// Read token from service account file
+// NewK8sClient initializes the Kubernetes client, loads initial pod list, and starts watching changes.
+func NewK8sClient(namespace, service string) (*K8sClient, error) {
+	// Read the token from the service account file
 	token, err := os.ReadFile("/var/run/secrets/kubernetes.io/serviceaccount/token")
 	if err != nil {
-		os.Stderr.WriteString(fmt.Sprintf("RTB : cannot read service account token: %s\n", err.Error()))
-		return nil, err
+		return nil, fmt.Errorf("RTB : cannot read service account token: %s", err.Error())
 	}
 
 	// Get Kubernetes API URL from environment variables
@@ -51,7 +49,7 @@ func NewK8sClient(namespace, service string, updateInterval time.Duration) (*K8s
 
 	apiURL := fmt.Sprintf("https://%s:%s", host, port)
 
-	// Create HTTP client with TLS config
+	// Initialize K8sClient
 	kc := &K8sClient{
 		apiURL:    apiURL,
 		token:     strings.TrimSpace(string(token)),
@@ -60,30 +58,31 @@ func NewK8sClient(namespace, service string, updateInterval time.Duration) (*K8s
 		pods:      make(map[string]string),
 		httpClient: &http.Client{
 			Transport: &http.Transport{
-				TLSClientConfig: &tls.Config{
-					InsecureSkipVerify: true, // Disable verification (better to use CA from mounted file)
-				},
+				TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
 			},
-			Timeout: 5 * time.Second,
 		},
 	}
 
-	// Start periodic updates
-	go kc.updatePodsPeriodically(updateInterval)
+	// Load full list of pods at startup
+	if err := kc.updatePods(); err != nil {
+		return nil, fmt.Errorf("RTB : failed to fetch initial pod list: %s", err.Error())
+	}
+
+	// Start watching for pod changes
+	go kc.watchPods()
 
 	return kc, nil
 }
 
-// updatePods fetches the list of pods for the service using Kubernetes API.
+// updatePods fetches the full list of pods using Kubernetes API.
 func (kc *K8sClient) updatePods() error {
-	url := fmt.Sprintf("%s/api/v1/namespaces/%s/endpoints/%s", kc.apiURL, kc.namespace, kc.service)
+	url := fmt.Sprintf("%s/api/v1/namespaces/%s/pods?labelSelector=app=%s", kc.apiURL, kc.namespace, kc.service)
 
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
 		return err
 	}
 
-	// Add authorization header
 	req.Header.Set("Authorization", "Bearer "+kc.token)
 	req.Header.Set("Accept", "application/json")
 
@@ -95,7 +94,7 @@ func (kc *K8sClient) updatePods() error {
 
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)
-		return fmt.Errorf("RTB : failed to fetch endpoints, status: %d\nbody: %s\nurl: %s\n", resp.StatusCode, (string)(body), url)
+		return fmt.Errorf("RTB : failed to fetch pods, status: %d\nbody: %s\nurl: %s\n", resp.StatusCode, string(body), url)
 	}
 
 	body, err := io.ReadAll(resp.Body)
@@ -105,11 +104,11 @@ func (kc *K8sClient) updatePods() error {
 
 	// Parse JSON response
 	var result struct {
-		Subsets []struct {
-			Addresses []struct {
-				IP string `json:"ip"`
-			} `json:"addresses"`
-		} `json:"subsets"`
+		Items []struct {
+			Status struct {
+				PodIP string `json:"podIP"`
+			} `json:"status"`
+		} `json:"items"`
 	}
 
 	if err := json.Unmarshal(body, &result); err != nil {
@@ -122,26 +121,80 @@ func (kc *K8sClient) updatePods() error {
 	kc.pods = make(map[string]string)
 
 	ips := ""
-	for _, subset := range result.Subsets {
-		for _, addr := range subset.Addresses {
-			hash := crc32.ChecksumIEEE([]byte(addr.IP))
+	for _, pod := range result.Items {
+		if pod.Status.PodIP != "" {
+			hash := crc32.ChecksumIEEE([]byte(pod.Status.PodIP))
 			podHash := fmt.Sprintf("%08x", hash)
-			kc.pods[podHash] = addr.IP
-			ips += addr.IP + "; "
+			kc.pods[podHash] = pod.Status.PodIP
+			ips += pod.Status.PodIP + "; "
 		}
 	}
-	os.Stderr.WriteString(fmt.Sprintf("RTB : updated pod list: len=%d, ips: %s\n", len(kc.pods), ips))
+	os.Stderr.WriteString(fmt.Sprintf("RTB : Initial pod list loaded: len=%d, ips: %s\n", len(kc.pods), ips))
 
 	return nil
 }
 
-// updatePodsPeriodically runs in a loop to update the pod list.
-func (kc *K8sClient) updatePodsPeriodically(interval time.Duration) {
+// watchPods listens for pod changes in Kubernetes.
+func (kc *K8sClient) watchPods() {
+	url := fmt.Sprintf("%s/api/v1/namespaces/%s/pods?watch=true&labelSelector=app=%s", kc.apiURL, kc.namespace, kc.service)
+
 	for {
-		if err := kc.updatePods(); err != nil {
-			os.Stderr.WriteString(fmt.Sprintf("RTB : failed to update pod list: %s\n", err.Error()))
+		req, err := http.NewRequest("GET", url, nil)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "RTB : Failed to create watch request: %s\n", err.Error())
+			continue
 		}
-		time.Sleep(interval)
+		req.Header.Set("Authorization", "Bearer "+kc.token)
+		req.Header.Set("Accept", "application/json")
+
+		resp, err := kc.httpClient.Do(req)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "RTB : Failed to execute watch request: %s\n", err.Error())
+			continue
+		}
+		defer resp.Body.Close()
+
+		decoder := json.NewDecoder(resp.Body)
+
+		// Stream updates in real time
+		for {
+			var event struct {
+				Type   string `json:"type"`
+				Object struct {
+					Status struct {
+						PodIP string `json:"podIP"`
+					} `json:"status"`
+				} `json:"object"`
+			}
+
+			if err := decoder.Decode(&event); err == io.EOF {
+				break
+			} else if err != nil {
+				fmt.Fprintf(os.Stderr, "RTB : Error decoding pod event: %s\n", err.Error())
+				break
+			}
+
+			// Lock for all operations
+			kc.mu.Lock()
+
+			if event.Type == "ADDED" {
+				hash := crc32.ChecksumIEEE([]byte(event.Object.Status.PodIP))
+				podHash := fmt.Sprintf("%08x", hash)
+				kc.pods[podHash] = event.Object.Status.PodIP
+				fmt.Fprintf(os.Stderr, "RTB : Pod added: %s\n", event.Object.Status.PodIP)
+			} else if event.Type == "DELETED" {
+				// Ensure atomic map modification
+				for key, ip := range kc.pods {
+					if ip == event.Object.Status.PodIP {
+						delete(kc.pods, key)
+						fmt.Fprintf(os.Stderr, "RTB : Pod removed: %s\n", event.Object.Status.PodIP)
+						break
+					}
+				}
+			}
+
+			kc.mu.Unlock()
+		}
 	}
 }
 

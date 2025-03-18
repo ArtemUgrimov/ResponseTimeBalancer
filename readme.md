@@ -19,7 +19,6 @@ http:
         rtb_static:
           namespace: "rc"
           serviceName: "bng-server"
-          updateInterval: "10s"
 ```
 
 ## K8s
@@ -44,5 +43,4 @@ spec:
     rtb_static:
       namespace: "rc"
       serviceName: "bng-server"
-      updateInterval: "10s"
 ```

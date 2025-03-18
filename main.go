@@ -17,7 +17,7 @@ type K8sBalancer struct {
 
 // New creates a new instance of the middleware
 func New(ctx context.Context, next http.Handler, config *Config, name string) (http.Handler, error) {
-	k8sClient, err := NewK8sClient(config.KubernetesNamespace, config.ServiceName, config.UpdateInterval)
+	k8sClient, err := NewK8sClient(config.KubernetesNamespace, config.ServiceName)
 	if err != nil {
 		return nil, err
 	}
