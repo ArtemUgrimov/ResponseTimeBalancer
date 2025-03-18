@@ -53,8 +53,11 @@ func (b *K8sBalancer) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 		hash := crc32.ChecksumIEEE([]byte(targetPod))
 		podID = fmt.Sprintf("%08x", hash)
 
+		req.Host = targetPod
 		req.URL.Host = targetPod
 		req.URL.Scheme = "http"
+		req.Header.Set("X-Forwarded-Host", targetPod)
+		req.Header.Set("X-Forwarded-For", req.RemoteAddr)
 		req.Header.Set("X-Balancer", "K8sBalancer")
 		rw.Header().Set(b.header, podID)
 	}
