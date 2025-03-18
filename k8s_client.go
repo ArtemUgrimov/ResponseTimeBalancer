@@ -4,6 +4,7 @@ import (
 	"crypto/tls"
 	"encoding/json"
 	"fmt"
+	"hash/crc32"
 	"io"
 	"math/rand"
 	"net/http"
@@ -111,13 +112,16 @@ func (kc *K8sClient) updatePods() error {
 
 	kc.pods = make(map[string]string)
 
+	ips := ""
 	for _, subset := range result.Subsets {
 		for _, addr := range subset.Addresses {
-			podHash := fmt.Sprintf("%x", addr.IP)[:8] // Generate short hash
+			hash := crc32.ChecksumIEEE([]byte(addr.IP))
+			podHash := fmt.Sprintf("%08x", hash)
 			kc.pods[podHash] = addr.IP
+			ips += addr.IP + "; "
 		}
 	}
-	os.Stderr.WriteString(fmt.Sprintf("RTB : updated pod list: len=%d\n", len(kc.pods)))
+	os.Stderr.WriteString(fmt.Sprintf("RTB : updated pod list: len=%d, ips: %s\n", len(kc.pods), ips))
 
 	return nil
 }
