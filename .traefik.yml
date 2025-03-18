@@ -4,17 +4,10 @@ iconPath: .assets/icon.png
 
 import: github.com/ArtemUgrimov/ResponseTimeBalancer
 
-summary: 'Resetting cookie if the value defined in some header exceeds specified amount'
+summary: 'Load balancer by header value'
 
 testData:
   rtb_static:
-    responseTimeHeaderName: "Tm"
-    responseTimeLimitMs: "80"
-    cookieSetHeaderValue: "invalidated"
-    partitionedHeaderValue: "; SameSite=None; Partitioned;"
-
-    enableCookieInvalidation: true
-    logStartup: true
-    logSetCookie: true
-    logLimitNotReached: true
-    logHeaderNotFound: true
+    namespace: "rc"
+    serviceName: "bng-rc"
+    updateInterval: "10s"
