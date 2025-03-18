@@ -47,12 +47,12 @@ type Plugin struct {
 // New created a new Demo plugin.
 func New(ctx context.Context, next http.Handler, config *Config, name string) (http.Handler, error) {
 	if config.LogStartup {
-		os.Stderr.WriteString(fmt.Sprintf("RTL plugin:    Init config : %v\n", config))
+		os.Stderr.WriteString(fmt.Sprintf("RTB :    Init config : %v\n", config))
 	}
 
 	limit, err := strconv.Atoi(config.ResponseTimeLimitMs)
 	if err != nil {
-		return nil, fmt.Errorf("RTL plugin:    cannot parse ResponseTimeLimit, got %v", config.ResponseTimeLimitMs)
+		return nil, fmt.Errorf("RTB :    cannot parse ResponseTimeLimit, got %v", config.ResponseTimeLimitMs)
 	}
 
 	return &Plugin{
@@ -71,6 +71,14 @@ func (a *Plugin) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 		ResponseTimeLimit:      a.limitMs,
 		CookieSetHeaderValue:   a.config.CookieSetHeaderValue,
 		PartitionedHeaderValue: a.config.PartitionedHeaderValue,
+	}
+
+	podIdHeaderValue := req.Header.Get("pod-id")
+	if len(podIdHeaderValue) > 0 {
+		req.Header.Set("Cookie", fmt.Sprintf("pod-id=%s", podIdHeaderValue))
+		os.Stderr.WriteString(fmt.Sprintf("RTB : updated request header Cookie with the value of %s\n", podIdHeaderValue))
+	} else {
+		os.Stderr.WriteString("RTB : no pod-id header in the request\n")
 	}
 
 	a.next.ServeHTTP(myWriter, req)
