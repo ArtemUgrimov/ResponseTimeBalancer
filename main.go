@@ -3,83 +3,47 @@ package ResponseTimeBalancer
 import (
 	"context"
 	"fmt"
+	"math/rand"
 	"net/http"
-	"os"
-	"strconv"
 )
 
-// Config the plugin configuration.
-type Config struct {
-	ResponseTimeHeaderName string `json:"responseTimeHeaderName"`
-	ResponseTimeLimitMs    string `json:"responseTimeLimitMs"`
-	CookieSetHeaderValue   string `json:"cookieSetHeaderValue"`
-	PartitionedHeaderValue string `json:"partitionedHeaderValue"`
-
-	EnableCookieInvalidation bool `json:"enableCookieInvalidation"`
-	LogStartup               bool `json:"logStartup"`
-	LogSetCookie             bool `json:"logSetCookie"`
-	LogLimitNotReached       bool `json:"logLimitNotReached"`
-	LogHeaderNotFound        bool `json:"logHeaderNotFound"`
+// K8sBalancer is the middleware struct
+type K8sBalancer struct {
+	next   http.Handler
+	k8s    *K8sClient
+	header string
 }
 
-func CreateConfig() *Config {
-	return &Config{
-		ResponseTimeHeaderName: "Tm",
-		ResponseTimeLimitMs:    "80",
-		CookieSetHeaderValue:   "invalidated",
-		PartitionedHeaderValue: "; SameSite=None; Partitioned;",
-
-		EnableCookieInvalidation: true,
-		LogStartup:               true,
-		LogSetCookie:             true,
-		LogLimitNotReached:       true,
-		LogHeaderNotFound:        true,
-	}
-}
-
-type Plugin struct {
-	next    http.Handler
-	name    string
-	config  *Config
-	limitMs int
-}
-
-// New created a new Demo plugin.
+// New creates a new instance of the middleware
 func New(ctx context.Context, next http.Handler, config *Config, name string) (http.Handler, error) {
-	if config.LogStartup {
-		os.Stderr.WriteString(fmt.Sprintf("RTB :    Init config : %v\n", config))
-	}
-
-	limit, err := strconv.Atoi(config.ResponseTimeLimitMs)
+	k8sClient, err := NewK8sClient(config.KubernetesNamespace, config.ServiceName, config.UpdateInterval)
 	if err != nil {
-		return nil, fmt.Errorf("RTB :    cannot parse ResponseTimeLimit, got %v", config.ResponseTimeLimitMs)
+		return nil, err
 	}
 
-	return &Plugin{
-		next:    next,
-		name:    name,
-		config:  config,
-		limitMs: limit,
+	return &K8sBalancer{
+		next:   next,
+		k8s:    k8sClient,
+		header: "pod-id",
 	}, nil
 }
 
-func (a *Plugin) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
-	myWriter := &responseWriter{
-		writer:                 rw,
-		config:                 a.config,
-		ResponseTimeHeaderName: a.config.ResponseTimeHeaderName,
-		ResponseTimeLimit:      a.limitMs,
-		CookieSetHeaderValue:   a.config.CookieSetHeaderValue,
-		PartitionedHeaderValue: a.config.PartitionedHeaderValue,
-	}
+// ServeHTTP handles the request and selects a pod
+func (b *K8sBalancer) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
+	podID := req.Header.Get(b.header)
 
-	podIdHeaderValue := req.Header.Get("pod-id")
-	if len(podIdHeaderValue) > 0 {
-		req.Header.Set("Cookie", fmt.Sprintf("pod-id=%s", podIdHeaderValue))
-		os.Stderr.WriteString(fmt.Sprintf("RTB : updated request header Cookie with the value of %s\n", podIdHeaderValue))
+	var targetPod string
+	if pod, exists := b.k8s.GetPod(podID); exists {
+		targetPod = pod
 	} else {
-		os.Stderr.WriteString("RTB : no pod-id header in the request\n")
+		targetPod = b.k8s.GetRandomPod()
+		podID = fmt.Sprintf("%x", rand.Intn(1000000))[:8]
 	}
 
-	a.next.ServeHTTP(myWriter, req)
+	req.URL.Host = targetPod
+	req.URL.Scheme = "http"
+	req.Header.Set("X-Balancer", "K8sBalancer")
+	rw.Header().Set(b.header, podID)
+
+	b.next.ServeHTTP(rw, req)
 }

@@ -17,15 +17,9 @@ http:
     rtb:
       plugin:
         rtb_static:
-          responseTimeHeaderName: "Tm"
-          responseTimeLimitMs: "80"
-          cookieSetHeaderValue: "invalidated"
-
-          enableCookieInvalidation: true
-          logStartup: true
-          logSetCookie: true
-          logLimitNotReached: true
-          logHeaderNotFound: true
+          namespace: "rc"
+          serviceName: "bng-rc"
+          updateInterval: "10s"
 ```
 
 ## K8s
@@ -48,14 +42,7 @@ metadata:
 spec:
   plugin:
     rtb_static:
-      responseTimeHeaderName: "Tm"
-      responseTimeLimitMs: "80"
-      cookieSetHeaderValue: "invalidated"
-      partitionedHeaderValue: "; SameSite=None; Partitioned;"
-
-      enableCookieInvalidation: true
-      logStartup: true
-      logSetCookie: true
-      logLimitNotReached: true
-      logHeaderNotFound: true
+      namespace: "rc"
+      serviceName: "bng-rc"
+      updateInterval: "10s"
 ```
