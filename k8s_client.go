@@ -134,7 +134,7 @@ func (kc *K8sClient) updatePods() error {
 	return nil
 }
 
-// watchPods listens for pod changes in Kubernetes.
+// watchPods listens for pod changes in Kubernetes, adding only Ready pods.
 func (kc *K8sClient) watchPods() {
 	url := fmt.Sprintf("%s/api/v1/namespaces/%s/pods?watch=true&labelSelector=app=%s", kc.apiURL, kc.namespace, kc.service)
 
@@ -162,7 +162,11 @@ func (kc *K8sClient) watchPods() {
 				Type   string `json:"type"`
 				Object struct {
 					Status struct {
-						PodIP string `json:"podIP"`
+						PodIP      string `json:"podIP"`
+						Conditions []struct {
+							Type   string `json:"type"`
+							Status string `json:"status"`
+						} `json:"conditions"`
 					} `json:"status"`
 				} `json:"object"`
 			}
@@ -174,20 +178,40 @@ func (kc *K8sClient) watchPods() {
 				break
 			}
 
+			// Determine if the pod is Ready
+			isReady := false
+			for _, condition := range event.Object.Status.Conditions {
+				if condition.Type == "Ready" && condition.Status == "True" {
+					isReady = true
+					break
+				}
+			}
+
 			// Lock for all operations
 			kc.mu.Lock()
 
-			if event.Type == "ADDED" {
-				hash := crc32.ChecksumIEEE([]byte(event.Object.Status.PodIP))
-				podHash := fmt.Sprintf("%08x", hash)
-				kc.pods[podHash] = event.Object.Status.PodIP
-				fmt.Fprintf(os.Stderr, "RTB : Pod added: %s\n", event.Object.Status.PodIP)
+			if event.Type == "ADDED" || event.Type == "MODIFIED" {
+				if isReady {
+					hash := crc32.ChecksumIEEE([]byte(event.Object.Status.PodIP))
+					podHash := fmt.Sprintf("%08x", hash)
+					kc.pods[podHash] = event.Object.Status.PodIP
+					fmt.Fprintf(os.Stderr, "RTB : Pod added/updated (Ready): %s\n", event.Object.Status.PodIP)
+				} else {
+					// Remove pod if it's not ready anymore
+					for key, ip := range kc.pods {
+						if ip == event.Object.Status.PodIP {
+							delete(kc.pods, key)
+							fmt.Fprintf(os.Stderr, "RTB : Pod removed (Not Ready): %s\n", event.Object.Status.PodIP)
+							break
+						}
+					}
+				}
 			} else if event.Type == "DELETED" {
-				// Ensure atomic map modification
+				// Remove pod when it is completely deleted
 				for key, ip := range kc.pods {
 					if ip == event.Object.Status.PodIP {
 						delete(kc.pods, key)
-						fmt.Fprintf(os.Stderr, "RTB : Pod removed: %s\n", event.Object.Status.PodIP)
+						fmt.Fprintf(os.Stderr, "RTB : Pod removed (Deleted): %s\n", event.Object.Status.PodIP)
 						break
 					}
 				}

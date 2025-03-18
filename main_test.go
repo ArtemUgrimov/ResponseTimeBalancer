@@ -9,7 +9,7 @@ import (
 	"testing"
 )
 
-// MockK8sClient implements K8sClientInterface for testing.
+// MockK8sClient simulates Kubernetes pod management for testing.
 type MockK8sClient struct {
 	pods map[string]string
 	mu   sync.RWMutex
@@ -22,8 +22,8 @@ var _ K8sClientInterface = (*MockK8sClient)(nil)
 func NewMockK8sClient() *MockK8sClient {
 	return &MockK8sClient{
 		pods: map[string]string{
-			"abcd1234": "10.0.0.1",
-			"efgh5678": "10.0.0.2",
+			"abcd1234": "10.0.0.1", // Ready pod
+			"efgh5678": "10.0.0.2", // Ready pod
 		},
 	}
 }
@@ -47,7 +47,7 @@ func (kc *MockK8sClient) GetRandomPod() string {
 	return ""
 }
 
-// AddPod simulates adding a new pod.
+// AddPod simulates adding a new Ready pod.
 func (kc *MockK8sClient) AddPod(ip string) {
 	kc.mu.Lock()
 	defer kc.mu.Unlock()
@@ -64,6 +64,25 @@ func (kc *MockK8sClient) RemovePod(ip string) {
 		if val == ip {
 			delete(kc.pods, key)
 			break
+		}
+	}
+}
+
+// SetPodReady simulates pod readiness change.
+func (kc *MockK8sClient) SetPodReady(ip string, isReady bool) {
+	kc.mu.Lock()
+	defer kc.mu.Unlock()
+
+	if isReady {
+		hash := crc32.ChecksumIEEE([]byte(ip))
+		kc.pods[fmt.Sprintf("%08x", hash)] = ip
+	} else {
+		// Remove pod from ready list
+		for key, val := range kc.pods {
+			if val == ip {
+				delete(kc.pods, key)
+				break
+			}
 		}
 	}
 }
@@ -118,7 +137,7 @@ func TestPodHashGeneration(t *testing.T) {
 	}
 }
 
-// **Test adding a pod dynamically**
+// **Test adding a Ready pod dynamically**
 func TestK8sClient_AddPod(t *testing.T) {
 	mockClient := NewMockK8sClient()
 
@@ -143,6 +162,34 @@ func TestK8sClient_RemovePod(t *testing.T) {
 
 	if _, exists := mockClient.GetPod(expectedHash); exists {
 		t.Errorf("Expected pod to be removed, but it still exists")
+	}
+}
+
+// **Test marking a pod as Not Ready**
+func TestK8sClient_SetPodNotReady(t *testing.T) {
+	mockClient := NewMockK8sClient()
+
+	mockClient.SetPodReady("10.0.0.1", false)
+
+	// Compute the expected hash
+	expectedHash := fmt.Sprintf("%08x", crc32.ChecksumIEEE([]byte("10.0.0.1")))
+
+	if _, exists := mockClient.GetPod(expectedHash); exists {
+		t.Errorf("Expected pod to be removed due to readiness failure, but it still exists")
+	}
+}
+
+// **Test marking a pod as Ready**
+func TestK8sClient_SetPodReady(t *testing.T) {
+	mockClient := NewMockK8sClient()
+
+	mockClient.SetPodReady("10.0.0.4", true)
+
+	// Compute the expected hash
+	expectedHash := fmt.Sprintf("%08x", crc32.ChecksumIEEE([]byte("10.0.0.4")))
+
+	if _, exists := mockClient.GetPod(expectedHash); !exists {
+		t.Errorf("Expected pod to be added as Ready, but it was not found")
 	}
 }
 
