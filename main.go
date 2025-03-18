@@ -36,8 +36,10 @@ func (b *K8sBalancer) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	var targetPod string
 	if len(podID) == 0 {
 		targetPod = b.k8s.GetRandomPod()
+		os.Stderr.WriteString(fmt.Sprintf("RTB : picked %s because input is empty\n", targetPod))
 	} else if pod, exists := b.k8s.GetPod(podID); exists {
 		targetPod = pod
+		os.Stderr.WriteString(fmt.Sprintf("RTB : picked %s\n", targetPod))
 	} else {
 		targetPod = b.k8s.GetRandomPod()
 		if len(targetPod) > 0 {
