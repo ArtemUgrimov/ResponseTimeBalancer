@@ -3,8 +3,8 @@ package ResponseTimeBalancer
 import (
 	"context"
 	"fmt"
-	"math/rand"
 	"net/http"
+	"os"
 )
 
 // K8sBalancer is the middleware struct
@@ -37,7 +37,8 @@ func (b *K8sBalancer) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 		targetPod = pod
 	} else {
 		targetPod = b.k8s.GetRandomPod()
-		podID = fmt.Sprintf("%x", rand.Intn(1000000))[:8]
+		os.Stderr.WriteString(fmt.Sprintf("RTB : pod %s does not exist, picked %s\n", podID, targetPod))
+		podID = fmt.Sprintf("%x", targetPod)[:8]
 	}
 
 	req.URL.Host = targetPod

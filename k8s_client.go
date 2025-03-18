@@ -3,6 +3,8 @@ package ResponseTimeBalancer
 import (
 	"context"
 	"fmt"
+	"math/rand"
+	"os"
 	"sync"
 	"time"
 
@@ -24,11 +26,13 @@ type K8sClient struct {
 func NewK8sClient(namespace, service string, updateInterval time.Duration) (*K8sClient, error) {
 	config, err := rest.InClusterConfig()
 	if err != nil {
+		os.Stderr.WriteString(fmt.Sprintf("RTB : cannot call InClusterConfig for k8s client: %s\n", err.Error()))
 		return nil, err
 	}
 
 	clientset, err := kubernetes.NewForConfig(config)
 	if err != nil {
+		os.Stderr.WriteString(fmt.Sprintf("RTB : cannot instantiate k8s client: %s\n", err.Error()))
 		return nil, err
 	}
 
@@ -63,6 +67,7 @@ func (kc *K8sClient) updatePods() error {
 			kc.pods[podHash] = addr.IP
 		}
 	}
+	os.Stderr.WriteString(fmt.Sprintf("RTB : updated pod list: len=%d\n", len(kc.pods)))
 
 	return nil
 }
@@ -71,7 +76,7 @@ func (kc *K8sClient) updatePods() error {
 func (kc *K8sClient) updatePodsPeriodically(interval time.Duration) {
 	for {
 		if err := kc.updatePods(); err != nil {
-			fmt.Println("Failed to update pod list:", err)
+			os.Stderr.WriteString(fmt.Sprintf("RTB : failed to update pod list: %s\n", err.Error()))
 		}
 		time.Sleep(interval)
 	}
@@ -90,9 +95,14 @@ func (kc *K8sClient) GetRandomPod() string {
 	kc.mu.RLock()
 	defer kc.mu.RUnlock()
 
-	for _, ip := range kc.pods {
-		return ip // Simple round-robin
+	if len(kc.pods) == 0 {
+		return ""
 	}
 
-	return ""
+	var podList []string
+	for _, ip := range kc.pods {
+		podList = append(podList, ip)
+	}
+
+	return podList[rand.Intn(len(podList))]
 }
