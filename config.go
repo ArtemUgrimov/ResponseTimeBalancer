@@ -11,7 +11,7 @@ type Config struct {
 func CreateConfig() *Config {
 	return &Config{
 		KubernetesNamespace: "rc",
-		ServiceName:         "bng-rc",
+		ServiceName:         "bng-server",
 		UpdateInterval:      time.Second * 30,
 	}
 }

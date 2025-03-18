@@ -9,5 +9,5 @@ summary: 'Load balancer by header value'
 testData:
   rtb_static:
     namespace: "rc"
-    serviceName: "bng-rc"
+    serviceName: "bng-server"
     updateInterval: "10s"

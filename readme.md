@@ -18,7 +18,7 @@ http:
       plugin:
         rtb_static:
           namespace: "rc"
-          serviceName: "bng-rc"
+          serviceName: "bng-server"
           updateInterval: "10s"
 ```
 
@@ -43,6 +43,6 @@ spec:
   plugin:
     rtb_static:
       namespace: "rc"
-      serviceName: "bng-rc"
+      serviceName: "bng-server"
       updateInterval: "10s"
 ```
