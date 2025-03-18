@@ -44,18 +44,19 @@ func (b *K8sBalancer) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 		targetPod = b.k8s.GetRandomPod()
 		if len(targetPod) > 0 {
 			os.Stderr.WriteString(fmt.Sprintf("RTB : pod %s does not exist, picked %s\n", podID, targetPod))
-			hash := crc32.ChecksumIEEE([]byte(targetPod))
-			podID = fmt.Sprintf("%08x", hash)
 		} else {
 			os.Stderr.WriteString("RTB : pod cannot be picked\n")
 		}
 	}
 
 	if len(targetPod) > 0 {
+		hash := crc32.ChecksumIEEE([]byte(targetPod))
+		podID = fmt.Sprintf("%08x", hash)
+
 		req.URL.Host = targetPod
 		req.URL.Scheme = "http"
 		req.Header.Set("X-Balancer", "K8sBalancer")
-		rw.Header().Set(b.header, targetPod)
+		rw.Header().Set(b.header, podID)
 	}
 
 	b.next.ServeHTTP(rw, req)
