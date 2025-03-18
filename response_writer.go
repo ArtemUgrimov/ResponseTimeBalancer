@@ -50,7 +50,7 @@ func (r *responseWriter) invalidateCookie() {
 				if r.config.LogSetCookie {
 					os.Stderr.WriteString(
 						fmt.Sprintf(
-							"RTL plugin:    Response time = %d. Set-Cookie: %s\n",
+							"RTB :    Response time = %d. Set-Cookie: %s\n",
 							tm,
 							r.CookieSetHeaderValue,
 						),
@@ -60,7 +60,7 @@ func (r *responseWriter) invalidateCookie() {
 				if r.config.LogLimitNotReached {
 					os.Stderr.WriteString(
 						fmt.Sprintf(
-							"RTL plugin:    Response time = %d. Limit (%d) is not reached. Skip\n",
+							"RTB :    Response time = %d. Limit (%d) is not reached. Skip\n",
 							tm,
 							r.ResponseTimeLimit,
 						),
@@ -79,20 +79,40 @@ func (r *responseWriter) enablePartitioned() {
 	// https://github.com/traefik/traefik/issues/10117
 	setCookieHeader := r.writer.Header().Get("Set-Cookie")
 	if len(setCookieHeader) > 0 {
-		if strings.Contains(setCookieHeader, "Partitioned") {
-			os.Stderr.WriteString("Set-Cookie already contains Partitioned value. Skip\n")
+		if strings.Contains(setCookieHeader, "pod-id") {
+			cookies := strings.Split(setCookieHeader, ";")
+			ok := false
+			for _, k := range cookies {
+				k = strings.Trim(k, " ;")
+				if strings.Contains(k, "pod-id") {
+					elements := strings.Split(k, "=")
+					if len(elements) != 2 {
+						os.Stderr.WriteString(fmt.Sprintf("RTB : pod-id has no value! %s \n", k))
+						continue
+					}
+					podIdValue := elements[1]
+					r.writer.Header().Set("pod-id", podIdValue)
+					r.writer.Header().Del("Set-Cookie")
+					os.Stderr.WriteString(fmt.Sprintf("RTB : added pod-id header with value of %s\n", podIdValue))
+					ok = true
+					break
+				}
+			}
+			if !ok {
+				os.Stderr.WriteString("RTB : operation failed\n")
+			}
 		} else {
-			// add Partitioned value
-			r.writer.Header().Set("Set-Cookie", fmt.Sprintf("%s %s", setCookieHeader, r.config.PartitionedHeaderValue))
-			os.Stderr.WriteString(fmt.Sprintf("Added %s value to the cookies\n", r.config.PartitionedHeaderValue))
+			os.Stderr.WriteString("RTB : no pod-id in cookies\n")
 		}
+	} else {
+		os.Stderr.WriteString("RTB : no Set-Cookie in headers\n")
 	}
 }
 
 func (r *responseWriter) Hijack() (net.Conn, *bufio.ReadWriter, error) {
 	hijacker, ok := r.writer.(http.Hijacker)
 	if !ok {
-		return nil, nil, fmt.Errorf("RTL plugin:    %T is not a http.Hijacker", r.writer)
+		return nil, nil, fmt.Errorf("RTB :    %T is not a http.Hijacker", r.writer)
 	}
 
 	return hijacker.Hijack()
